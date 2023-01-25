@@ -1,4 +1,5 @@
-import { Component } from 'react';
+import { useState } from 'react';
+import { useEffect } from 'react';
 import css from './App.module.css';
 import Searchbar from './Searchbar/Searchbar';
 import ImageGallery from './ImageGallery/ImageGallery';
@@ -9,99 +10,82 @@ import Api from 'services/Api/Api';
 
 const PER_PAGE = 12;
 
-export class App extends Component {
-  state = {
-    searchQuery: '',
-    searchResult: [],
-    totalHits: null,
-    page: 1,
-    totalPages: null,
-    largeImageURL: null,
-    id: null,
-    status: 'idle',
-  };
+export default function App() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResult, setSearchResult] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(null);
+  const [largeImageURL, setLargeImageURL] = useState(null);
+  const [id, setId] = useState(null);
+  const [loadStatus, setLoadStatus] = useState('idle');
 
-  componentDidUpdate(prevProps, prevState) {
-    const { searchQuery, page, searchResult } = this.state;
-
-    if (prevState.page !== page || prevState.searchQuery !== searchQuery) {
-      this.setState({ status: 'searching' });
-
-      Api(searchQuery, page, PER_PAGE)
-        .then(res => {
-          if (res.total === 0) {
-            return alert(`No such pictures`);
-          }
-          const { hits, totalHits } = res;
-          const totalPages = Math.ceil(totalHits / PER_PAGE);
-          const results = hits.map(({ id, largeImageURL, webformatURL }) => {
-            return { id, largeImageURL, webformatURL };
-          });
-
-          this.setState({
-            searchResult: [...searchResult, ...results],
-            totalHits,
-            totalPages,
-          });
-        })
-        .catch(error => alert(error))
-        .finally(() => {
-          this.setState({
-            status: 'idle',
-          });
-        });
+  useEffect(() => {
+    if (searchQuery === '') {
+      return;
     }
-  }
+    Api(searchQuery, page, PER_PAGE)
+      .then(res => {
+        setLoadStatus('searching');
+        if (res.total === 0) {
+          return alert(`No such pictures`);
+        }
+        const { hits, totalHits } = res;
+        const totalPages = Math.ceil(totalHits / PER_PAGE);
+        const results = hits.map(({ id, largeImageURL, webformatURL }) => {
+          return { id, largeImageURL, webformatURL };
+        });
 
-  onSearchbarSubmit = searchQuery => {
-    this.setState({
-      searchQuery,
-      searchResult: [],
-      totalHits: null,
-      page: 1,
-      totalPage: null,
-    });
+        setSearchResult(searchResult => [...searchResult, ...results]);
+        setTotalPages(totalPages);
+      })
+      .catch(error => alert(error))
+      .finally(() => {
+        setLoadStatus('idle');
+      });
+  }, [searchQuery, page]);
+
+  const onSearchbarSubmit = query => {
+    if (query === searchQuery) {
+      alert('You are currently viewing this request');
+      return;
+    }
+    setSearchQuery(query);
+    setSearchResult([]);
+    setPage(1);
+    setTotalPages(null);
   };
 
-  onImageClick = (largeImageURL, id) => {
-    this.setState({ largeImageURL, id });
+  const onImageClick = (getedLargeImageURL, imageId) => {
+    setId(imageId);
+    setLargeImageURL(getedLargeImageURL);
   };
 
-  onModalClose = () => {
-    this.setState({ largeImageURL: null, id: null });
+  const onModalClose = () => {
+    setId(null);
+    setLargeImageURL(null);
   };
 
-  onLoadMore = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
+  const onLoadMore = () => {
+    setPage(prevpage => prevpage + 1);
   };
 
-  render() {
-    const { searchResult, page, totalPage, largeImageURL, id, status } =
-      this.state;
-    const isButtonShow = searchResult.length > 0 && page !== totalPage;
+  const isButtonShow = searchResult.length > 0 && page !== totalPages;
+  return (
+    <div className={css.App}>
+      <Searchbar onSubmit={onSearchbarSubmit} />
+      {searchResult.length > 0 && (
+        <ImageGallery imageList={searchResult} onImageClick={onImageClick} />
+      )}
+      {isButtonShow && <Button onClick={onLoadMore} />}
 
-    return (
-      <div className={css.App}>
-        <Searchbar onSubmit={this.onSearchbarSubmit} />
-        {searchResult.length > 0 && (
-          <ImageGallery
-            imageList={searchResult}
-            onImageClick={this.onImageClick}
-          />
-        )}
-        {isButtonShow && <Button onClick={this.onLoadMore} />}
-
-        {largeImageURL && (
-          <Modal
-            largeImageURL={largeImageURL}
-            id={id}
-            onModalClose={this.onModalClose}
-          />
-        )}
-        {status === 'searching' && <Loader />}
-      </div>
-    );
-  }
+      {largeImageURL && (
+        <Modal
+          largeImageURL={largeImageURL}
+          id={id}
+          onModalClose={onModalClose}
+        />
+      )}
+      {loadStatus === 'searching' && <Loader />}
+    </div>
+  );
 }
