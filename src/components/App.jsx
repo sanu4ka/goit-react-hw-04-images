@@ -23,9 +23,9 @@ export default function App() {
     if (searchQuery === '') {
       return;
     }
+    setLoadStatus('searching');
     Api(searchQuery, page, PER_PAGE)
       .then(res => {
-        setLoadStatus('searching');
         if (res.total === 0) {
           return alert(`No such pictures`);
         }
